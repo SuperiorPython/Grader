@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>COMP 163 Code Grader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+<style>
+  :root {
+    --ink: #1C2B2E; --paper: #F3F4F0; --card: #FFFFFF; --rule: #D7DAD2;
+    --steel: #3D5A80; --brick: #9C4A34; --sage: #4C7A5D; --muted: #6B7570;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif; background: var(--paper); color: var(--ink);
+    margin: 0; padding: 26px 20px 60px;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  .title { font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 26px; }
+  .subtitle { font-size: 12.5px; color: var(--muted); margin-top: 2px; margin-bottom: 20px; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px; padding: 4px 10px; border-radius: 12px; border: 1px solid var(--rule); color: var(--muted);
+    margin-bottom: 18px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .dot.ready { background: var(--sage); }
+  .dot.busy { background: #C99A2E; }
+  .panel { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 20px; }
+  .concepts-panel { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; }
+  .concepts-toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .concepts-toggle strong { font-size: 14px; }
+  .concepts-count { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .field label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: -3px; }
+  textarea, input, select {
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 10px 11px; border: 1px solid var(--rule);
+    border-radius: 5px; background: var(--paper); color: var(--ink); width: 100%; resize: vertical;
+  }
+  textarea:focus, input:focus, select:focus { outline: 2px solid var(--steel); outline-offset: 1px; border-color: var(--steel); }
+  #code { min-height: 220px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row .field { flex: 1; min-width: 140px; margin-bottom: 0; }
+  button {
+    font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; font-size: 14px; padding: 10px 18px;
+    border-radius: 5px; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer;
+  }
+  button.secondary { background: var(--card); color: var(--ink); }
+  button.ghost { background: transparent; border-color: var(--rule); color: var(--muted); padding: 4px 9px; font-size: 12px; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .divider { height: 1px; background: var(--rule); margin: 14px 0; }
+  .list-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--rule); font-size: 13.5px; }
+  .list-item:last-child { border-bottom: none; }
+  .pill { font-family: 'IBM Plex Mono', monospace; font-size: 11px; background: var(--paper); border: 1px solid var(--rule); padding: 2px 8px; border-radius: 10px; color: var(--muted); }
+  .empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 10px 0; }
+  .rubric-toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+  .criterion-row { display: grid; grid-template-columns: 1fr 90px 90px 32px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dotted var(--rule); font-size: 13.5px; }
+  .criterion-row input[type=number] { text-align: center; }
+  .criterion-header { display: grid; grid-template-columns: 1fr 90px 90px 32px; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase; color: var(--muted); padding-bottom: 6px; }
+  .total-row { display: flex; justify-content: flex-end; gap: 10px; align-items: baseline; margin-top: 10px; font-family: 'IBM Plex Mono', monospace; }
+  .total-row .score { font-size: 18px; font-weight: 600; }
+  .section-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+  .result { margin-top: 22px; border-top: 2px solid var(--ink); padding-top: 18px; }
+  .flag-item { background: #FBF6F4; border-left: 3px solid var(--brick); padding: 8px 12px; margin-top: 8px; border-radius: 0 4px 4px 0; font-size: 13px; }
+  .used-tag { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; background: var(--paper); border: 1px solid var(--rule); padding: 2px 8px; border-radius: 10px; margin: 3px 4px 0 0; }
+  .error-box { background: #F5E3DE; color: var(--brick); border-radius: 5px; padding: 10px 14px; font-size: 13.5px; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">Code Grader</div>
+  <div class="subtitle">Rubric scoring is manual — you're the judge. Concept flagging runs a real Python AST parser, in your browser, via Pyodide.</div>
+  <div class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">Loading Python engine…</span></div>
+
+  <div class="concepts-panel">
+    <div class="concepts-toggle" id="conceptsToggle">
+      <strong>Known concepts ▸</strong>
+      <span class="concepts-count" id="conceptsCount">0 logged</span>
+    </div>
+    <div id="conceptsBody" style="display:none; margin-top:14px;">
+      <p class="hint" style="margin-bottom:12px;">
+        Add each concept once, tagged with the date you taught it. Saved in this browser (localStorage), so it
+        persists across visits on this device.
+      </p>
+      <div class="row">
+        <div class="field" style="flex:2;">
+          <label>Concept</label>
+          <input id="conceptName" placeholder="e.g. lists, dictionaries, try_except" />
+        </div>
+        <div class="field" style="max-width:170px;">
+          <label>Date covered</label>
+          <input id="conceptDate" type="date" />
+        </div>
+        <button class="secondary" id="addConceptBtn">Add</button>
+      </div>
+      <div class="divider"></div>
+      <div id="conceptsList"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="rubric-toolbar">
+      <div class="field" style="min-width:200px;">
+        <label>Assignment</label>
+        <select id="rubricSelect"><option value="__new__">+ New rubric…</option></select>
+      </div>
+      <div class="field" style="flex:1; min-width:200px;">
+        <label>Rubric name</label>
+        <input id="rubricName" placeholder="e.g. Assignment 2.3 — Lists" />
+      </div>
+      <button class="secondary" id="saveRubricBtn">Save rubric</button>
+      <button class="ghost" id="deleteRubricBtn" style="display:none;">Delete</button>
+    </div>
+
+    <div class="section-label">Criteria</div>
+    <div class="criterion-header"><span>Criterion</span><span>Max pts</span><span>Awarded</span><span></span></div>
+    <div id="criteriaList"></div>
+    <div class="row" style="margin-top:10px;">
+      <div class="field" style="flex:2;"><input id="newCritLabel" placeholder="New criterion, e.g. Correct output on edge cases" /></div>
+      <div class="field" style="max-width:90px;"><input id="newCritPoints" type="number" placeholder="pts" /></div>
+      <button class="secondary" id="addCritBtn">Add row</button>
+    </div>
+    <div class="total-row"><span>Total:</span><span class="score" id="totalScore">0 / 0</span></div>
+
+    <div class="divider"></div>
+
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field">
+        <label for="assignmentDate">Assignment date</label>
+        <input id="assignmentDate" type="date" />
+      </div>
+      <div class="field" style="flex:2;">
+        <label>Concepts known as of this date</label>
+        <div id="knownAsOf" style="font-size:13px; padding-top:6px; color: var(--muted);">—</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="code">Student code</label>
+      <textarea id="code" placeholder="Paste the student's code here…"></textarea>
+    </div>
+
+    <button id="checkBtn" disabled>Loading Python engine…</button>
+    <div id="errorBox" class="error-box" style="display:none;"></div>
+
+    <div class="result" id="resultBox" style="display:none;">
+      <div class="section-label">Concepts used</div>
+      <div id="usedTags"></div>
+      <div id="flagsSection" style="margin-top:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ---------- localStorage helpers ----------
+function loadJSON(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch (e) { console.error(e); return fallback; }
+}
+function saveJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+
+let concepts = loadJSON('grader_concepts', []);
+let rubrics = loadJSON('grader_rubrics', []);
+let selectedRubricId = '__new__';
+let criteria = []; // [{id, label, max, awarded}]
+
+// ---------- Concepts panel ----------
+$('conceptsToggle').addEventListener('click', () => {
+  const body = $('conceptsBody');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  $('conceptsToggle').querySelector('strong').textContent = 'Known concepts ' + (open ? '▸' : '▾');
+});
+
+function renderConcepts() {
+  $('conceptsCount').textContent = concepts.length + ' logged';
+  const list = $('conceptsList');
+  if (concepts.length === 0) {
+    list.innerHTML = '<div class="empty">Nothing logged yet.</div>';
+  } else {
+    list.innerHTML = concepts.map(c =>
+      `<div class="list-item"><span>${escapeHtml(c.name)}</span>
+        <span style="display:flex; gap:8px; align-items:center;">
+          <span class="pill">${c.date}</span>
+          <button class="ghost" data-id="${c.id}" onclick="removeConcept('${c.id}')">Remove</button>
+        </span></div>`
+    ).join('');
+  }
+  updateKnownAsOf();
+}
+function addConcept() {
+  const name = $('conceptName').value.trim();
+  const date = $('conceptDate').value || new Date().toISOString().slice(0,10);
+  if (!name) return;
+  concepts.push({ id: cryptoId(), name, date });
+  concepts.sort((a,b) => a.date.localeCompare(b.date));
+  saveJSON('grader_concepts', concepts);
+  $('conceptName').value = '';
+  renderConcepts();
+}
+function removeConcept(id) {
+  concepts = concepts.filter(c => c.id !== id);
+  saveJSON('grader_concepts', concepts);
+  renderConcepts();
+}
+$('addConceptBtn').addEventListener('click', addConcept);
+
+function updateKnownAsOf() {
+  const date = $('assignmentDate').value || new Date().toISOString().slice(0,10);
+  const known = concepts.filter(c => c.date <= date);
+  $('knownAsOf').textContent = known.length ? known.map(c => c.name).join(', ') : 'none logged for this date';
+  return known.map(c => c.name);
+}
+$('assignmentDate').addEventListener('change', updateKnownAsOf);
+
+// ---------- Rubric panel ----------
+function renderRubricOptions() {
+  const sel = $('rubricSelect');
+  sel.innerHTML = '<option value="__new__">+ New rubric…</option>' +
+    rubrics.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+  sel.value = selectedRubricId;
+}
+function selectRubric(id) {
+  selectedRubricId = id;
+  if (id === '__new__') {
+    $('rubricName').value = '';
+    criteria = [];
+    $('deleteRubricBtn').style.display = 'none';
+  } else {
+    const r = rubrics.find(r => r.id === id);
+    $('rubricName').value = r ? r.name : '';
+    criteria = r ? r.criteria.map(c => ({...c, awarded: 0})) : [];
+    $('deleteRubricBtn').style.display = 'inline-block';
+  }
+  renderCriteria();
+}
+$('rubricSelect').addEventListener('change', (e) => selectRubric(e.target.value));
+
+function renderCriteria() {
+  const list = $('criteriaList');
+  if (criteria.length === 0) {
+    list.innerHTML = '<div class="empty">No criteria yet — add rows below.</div>';
+  } else {
+    list.innerHTML = criteria.map((c, i) => `
+      <div class="criterion-row">
+        <span>${escapeHtml(c.label)}</span>
+        <span style="text-align:center;">${c.max}</span>
+        <input type="number" min="0" max="${c.max}" value="${c.awarded ?? 0}" data-idx="${i}" onchange="updateAwarded(${i}, this.value)" />
+        <button class="ghost" onclick="removeCriterion(${i})">✕</button>
+      </div>`).join('');
+  }
+  updateTotal();
+}
+function updateAwarded(idx, val) {
+  criteria[idx].awarded = Math.max(0, Math.min(criteria[idx].max, Number(val) || 0));
+  updateTotal();
+}
+function removeCriterion(idx) {
+  criteria.splice(idx, 1);
+  renderCriteria();
+}
+function updateTotal() {
+  const awarded = criteria.reduce((s,c) => s + (Number(c.awarded) || 0), 0);
+  const max = criteria.reduce((s,c) => s + (Number(c.max) || 0), 0);
+  $('totalScore').textContent = `${awarded} / ${max}`;
+}
+$('addCritBtn').addEventListener('click', () => {
+  const label = $('newCritLabel').value.trim();
+  const max = Number($('newCritPoints').value);
+  if (!label || !max) return;
+  criteria.push({ id: cryptoId(), label, max, awarded: 0 });
+  $('newCritLabel').value = ''; $('newCritPoints').value = '';
+  renderCriteria();
+});
+$('saveRubricBtn').addEventListener('click', () => {
+  const name = $('rubricName').value.trim();
+  if (!name) { showError('Name this rubric before saving.'); return; }
+  hideError();
+  const record = { id: selectedRubricId === '__new__' ? cryptoId() : selectedRubricId, name,
+    criteria: criteria.map(({id,label,max}) => ({id,label,max})) };
+  if (selectedRubricId === '__new__') {
+    rubrics.push(record);
+    selectedRubricId = record.id;
+  } else {
+    rubrics = rubrics.map(r => r.id === selectedRubricId ? record : r);
+  }
+  saveJSON('grader_rubrics', rubrics);
+  renderRubricOptions();
+  $('deleteRubricBtn').style.display = 'inline-block';
+});
+$('deleteRubricBtn').addEventListener('click', () => {
+  if (selectedRubricId === '__new__') return;
+  rubrics = rubrics.filter(r => r.id !== selectedRubricId);
+  saveJSON('grader_rubrics', rubrics);
+  selectRubric('__new__');
+  renderRubricOptions();
+});
+
+// ---------- helpers ----------
+function cryptoId() { return Math.random().toString(36).slice(2,9); }
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function showError(msg) { const b = $('errorBox'); b.textContent = msg; b.style.display = 'block'; }
+function hideError() { $('errorBox').style.display = 'none'; }
+
+// ---------- Pyodide ----------
+let pyodideReady = false;
+let pyodide = null;
+
+async function initPyodide() {
+  pyodide = await loadPyodide();
+  const src = await (await fetch('analyzer_source.py')).text();
+  pyodide.runPython(src);
+  pyodideReady = true;
+  $('statusDot').classList.add('ready');
+  $('statusText').textContent = 'Python engine ready';
+  $('checkBtn').disabled = false;
+  $('checkBtn').textContent = 'Check concepts';
+}
+$('statusDot').classList.add('busy');
+initPyodide().catch(e => {
+  $('statusText').textContent = 'Failed to load Python engine — check your connection and reload.';
+  console.error(e);
+});
+
+$('checkBtn').addEventListener('click', () => {
+  hideError();
+  const code = $('code').value;
+  if (!code.trim()) { showError('Paste the student\'s code first.'); return; }
+  if (!pyodideReady) { showError('Python engine is still loading — try again in a moment.'); return; }
+
+  const known = updateKnownAsOf();
+  try {
+    pyodide.globals.set('student_code', code);
+    pyodide.globals.set('known_json', JSON.stringify(known));
+    const resultStr = pyodide.runPython('analyze(student_code, known_json)');
+    const result = JSON.parse(resultStr);
+    if (result.error) { showError(result.error); $('resultBox').style.display = 'none'; return; }
+    renderResult(result);
+  } catch (e) {
+    showError('Could not analyze that code — check it\'s valid Python.');
+    console.error(e);
+  }
+});
+
+function renderResult(result) {
+  $('resultBox').style.display = 'block';
+  $('usedTags').innerHTML = result.used.length
+    ? result.used.map(c => `<span class="used-tag">${escapeHtml(c)}</span>`).join('')
+    : '<span class="hint">(none detected)</span>';
+
+  const flagsEl = $('flagsSection');
+  if (result.flagged.length) {
+    flagsEl.innerHTML = '<div class="section-label">Beyond the covered concepts</div>' +
+      result.flagged.map(f => `<div class="flag-item"><strong>${escapeHtml(f)}</strong> — not yet in your known-concepts list as of this assignment date. Worth asking the student to walk through it.</div>`).join('');
+  } else {
+    flagsEl.innerHTML = '<div class="hint">No concepts beyond the taught list detected.</div>';
+  }
+}
+
+// ---------- init ----------
+renderConcepts();
+renderRubricOptions();
+selectRubric('__new__');
+$('assignmentDate').value = new Date().toISOString().slice(0,10);
+updateKnownAsOf();
+</script>
+</body>
+</html>
